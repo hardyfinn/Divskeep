@@ -1,0 +1,23 @@
+{
+  "slug": "Divskip",
+  "name": "Divskip",
+  "version": "2.0.0",
+  "license": "GPL-3.0-or-later",
+  "brand": "Haer",
+  "author": "Haer",
+  "authorEmail": "",
+  "authorUrl": "",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "https://github.com/hardyfinn/Divskip",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "Divskip",
+      "name": "Divskip",
+      "description": "Four channels that split a clock between two outputs: coin toss, divider, Turing loop, Euclid split, Euclid classic, ramp, ratchet, drum patterns, random steps and sticky coin; channels can chain into longer loops",
+      "tags": ["Clock modulator", "Random", "Sequencer", "Quad"]
+    }
+  ]
+}
