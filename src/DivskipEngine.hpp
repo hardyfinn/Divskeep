@@ -3,8 +3,8 @@
 // tested on its own (test/engine_test.cpp).
 //
 // Every channel takes a clock (or any triggers) and splits it between two
-// outputs, A and B. What goes where depends on the mode and on the amount
-// (the knob plus its CV, 0..1).
+// outputs, A and B. What goes where depends on the mode and on two settings,
+// AMOUNT (p) and SHAPE (q), each 0..1 (knob plus CV).
 #pragma once
 #include <cstdint>
 #include <cmath>
@@ -19,19 +19,30 @@ static const char* const MODE_NAMES[MODE_COUNT] = {
 	"COIN", "DIVIDE", "TURING", "SPLIT", "EUCLID", "RAMP", "RATCHET", "PATTERN", "RANDOM", "STICKY"};
 static const char* const MODE_LONG_NAMES[MODE_COUNT] = {
 	"Coin toss (random A or B)", "Clock divider", "Turing loop", "Euclid split",
-	"Euclid classic", "Ramp (16 hits speeding up or slowing down)", "Ratchet bursts", "Drum patterns",
-	"Random steps (the dial sets how many)",
-	"Sticky coin (runs and clusters)"};
+	"Euclid", "Ramp (hits speeding up or slowing down)", "Ratchet bursts", "Drum patterns",
+	"Random steps", "Sticky coin (runs and clusters)"};
+
+// what SHAPE does in each mode (nullptr = nothing; the knob is dimmed)
+static const char* const SHAPE_NAMES[MODE_COUNT] = {
+	"loop length", "rotate", "mask length", nullptr, "hits",
+	"hits", "divide first", nullptr, "steps", "loop length"};
+
+// where SHAPE starts in each mode (the knob remembers its own position per mode)
+static const float SHAPE_DEFAULTS[MODE_COUNT] = {
+	0.7f,            // COIN: loop 16
+	0.f,             // DIVIDE: rotate 0
+	0.f,             // TURING: no mask
+	0.f,             // SPLIT: -
+	3.f / 16.f,      // EUCLID: 3 hits
+	1.f,             // RAMP: 16 hits
+	0.f,             // RATCHET: no divider
+	0.f,             // PATTERN: -
+	15.f / 31.f,     // RANDOM: 16 steps
+	0.f};            // STICKY: no loop
 
 static const float TRIG_TIME = 0.005f;   // 5 ms output triggers
 static const float TIMEOUT = 3.f;        // no clock for 3 s: back to step 1
-
-// Euclid classic: the 32 patterns, shortest loop first (loop length, hits)
-static const int CLASSIC[32][2] = {
-	{4, 1}, {4, 2}, {4, 3}, {5, 1}, {5, 2}, {5, 3}, {6, 1}, {6, 2}, {6, 3}, {6, 5},
-	{7, 1}, {7, 2}, {7, 3}, {8, 1}, {8, 3}, {8, 5}, {9, 1}, {9, 4}, {10, 3}, {10, 7},
-	{11, 3}, {11, 4}, {12, 5}, {12, 7}, {13, 3}, {13, 4}, {14, 3}, {14, 5}, {15, 4}, {15, 7},
-	{16, 3}, {16, 5}};
+static const float GATE_GAP = 0.002f;    // "gate gap" option: gates end 2 ms early
 
 // k hits spread as evenly as possible over n steps, first step always a hit
 inline bool euclidHit(int k, int n, int i) {
@@ -41,25 +52,42 @@ inline bool euclidHit(int k, int n, int i) {
 
 inline int roundi(float x) { return (int) std::floor(x + 0.5f); }
 inline float clamp01(float x) { return std::min(1.f, std::max(0.f, x)); }
+inline int popcount32(uint32_t v) { int n = 0; for (; v; v &= v - 1) n++; return n; }
 
-// What the amount means in each mode (shared with the display)
+// ---- what AMOUNT (p) means in each mode (shared with the display) ----
 inline int divideA(float p) { return 1 + roundi(clamp01(p) * 14.f); }          // 1..15, B = 16 - A
 inline int splitA(float p) { return 3 + roundi(clamp01(p) * 10.f); }           // 3..13, B = 16 - A
 inline int ratchetA(float p) { return 1 + roundi(clamp01(p) * 14.f); }         // 1..15, B = 16 - A
-inline int classicIndex(float p) { return std::min(31, (int) (clamp01(p) * 32.f)); }
+inline int euclidLength(float p) { return 1 + roundi(clamp01(p) * 15.f); }     // 1..16
 inline int patternIndex(float p) { return std::min(PATTERN_COUNT - 1, (int) (clamp01(p) * PATTERN_COUNT)); }
 // Turing: left half sets the loop length (locked), right half the chance a step flips
 inline int turingLength(float p) { return p >= 0.5f ? 16 : 1 + roundi(clamp01(p) * 2.f * 15.f); }
 inline float turingFlip(float p) { return p > 0.5f ? (clamp01(p) - 0.5f) : 0.f; }   // 0..0.5
 inline bool turingAlwaysOn(float p) { return p < 0.02f; }
-inline int randomHits(float p) { return roundi(clamp01(p) * 16.f); }   // 0..16 of 16 steps
+inline float turingLengthP(int L) { return (L - 1) / 30.f; }   // knob position for a loop of L
 // STICKY: chance that a hit goes to the same output as the last one.
 // Left = always swaps (A B A B), noon = plain coin toss, right = long runs.
 inline float stickyRepeat(float p) { return std::min(0.97f, clamp01(p)); }
-inline int popcount16(uint16_t v) { int n = 0; for (; v; v &= v - 1) n++; return n; }
-inline float turingLengthP(int L) { return (L - 1) / 30.f; }   // knob position for a loop of L
 
-// Ramp shape: where hit k of 16 lands, as a fraction of the clock period.
+// ---- what SHAPE (q) means in each mode ----
+// COIN and STICKY: loop off, 4, 8, 16 or 32 steps
+inline int loopSteps(float q) {
+	static const int L[5] = {0, 4, 8, 16, 32};
+	return L[std::min(4, (int) (clamp01(q) * 5.f))];
+}
+inline int divideRotate(float q) { return roundi(clamp01(q) * 15.f); }        // 0..15
+inline int maskLength(float q) { return roundi(clamp01(q) * 8.f); }           // 0 (off)..8
+inline int euclidHits(float p, float q) { return std::min(euclidLength(p), roundi(clamp01(q) * 16.f)); }
+inline int rampHits(float q) { return 1 + roundi(clamp01(q) * 15.f); }        // 1..16
+inline int ratchetDivide(float q) {                                           // 1 (off), 2, 4, 8
+	static const int D[4] = {1, 2, 4, 8};
+	return D[std::min(3, (int) (clamp01(q) * 4.f))];
+}
+inline int randomSteps(float q) { return 1 + roundi(clamp01(q) * 31.f); }     // 1..32
+inline int randomHits(float p, float q) { return roundi(clamp01(p) * randomSteps(q)); }
+inline bool usesSeed(int mode) { return mode == COIN || mode == TURING || mode == RANDOM || mode == STICKY; }
+
+// Ramp shape: where hit x (0..1) lands, as a fraction of the clock period.
 // p = 0 speeds up, 0.5 speeds up then slows down, 1 slows down.
 inline float rampTime(float p, float x) {
 	float accel = 1.f - (1.f - x) * (1.f - x);
@@ -98,20 +126,30 @@ struct Channel {
 	// step counters
 	int divA = 0, divB = 0; // DIVIDE
 	int split = 0;          // SPLIT, 0..15
-	int classic = 0;        // EUCLID
+	int euc = 0;            // EUCLID
 	int pattern = 0;        // PATTERN, 0..63
-	uint16_t reg = 0xA5C3;  // TURING shift register (saved with the patch)
-	int turPos = 0;
-	uint16_t rmask = 0x0101; // RANDOM: which of the 16 steps hit (saved with the patch)
-	int rpos = 0;
-	bool stickB = false;     // STICKY: where the last hit went
-	bool frozen = false;     // chained: the chain does the 3 s auto-reset instead
-	float fixedPeriod = 0.f; // chained: clock period measured by the chain (0 = measure here)
+	int turPos = 0, maskPos = 0;
+	int rpos = 0;           // RANDOM
+	int loopPos = 0;        // COIN / STICKY loops
+	int ratchetCount = 0;   // RATCHET divider
+	bool stickB = false;    // STICKY: where the last hit went
+
+	// the seed: everything random that loops (saved with the patch)
+	uint16_t reg = 0xA5C3;      // TURING shift register
+	uint8_t mask = 0xB5;        // TURING mask
+	uint32_t rmask = 0x0101;    // RANDOM: which of the 32 steps hit
+	int rsteps = 16;            // RANDOM: steps in use (for a new seed)
+	float coinU[32];            // COIN loop: one random number per step
+	float stickU[32];           // STICKY loop
+
+	bool frozen = false;        // chained: the chain does the 3 s auto-reset instead
+	float fixedPeriod = 0.f;    // chained: clock period measured by the chain (0 = measure here)
 
 	// outputs
 	bool levelA = false, levelB = false;  // held gates (GATE outputs, step modes)
 	float pulseA = 0.f, pulseB = 0.f;     // trigger time left
 	bool lastA = false, lastB = false;    // where the last step went (display)
+	bool gapLow = false;                  // gate gap: one low sample on a new clock
 
 	// timed modes (RAMP, RATCHET)
 	bool burst = false, window = false;
@@ -128,52 +166,90 @@ struct Channel {
 	int lastMode = -1;
 	bool lastGate = false;
 
+	Channel() {
+		for (int i = 0; i < 32; i++) coinU[i] = stickU[i] = rng.uniform();
+	}
+
 	void seed(uint32_t s) {
 		rng.s = s ? s : 1u;
+		newSeed();
+	}
+
+	// NEW SEED: new Turing loop and mask, new coin and sticky loops, new
+	// random pattern (same number of hits)
+	void newSeed() {
 		reg = (uint16_t) (rng.next() & 0xFFFF);
+		do mask = (uint8_t) (rng.next() & 0xFF); while (popcount32(mask) < 2);
+		for (int i = 0; i < 32; i++) {
+			coinU[i] = rng.uniform();
+			stickU[i] = rng.uniform();
+		}
+		int L = rsteps;
+		uint32_t used = L >= 32 ? 0xFFFFFFFFu : ((1u << L) - 1u);
+		int k = popcount32(rmask & used);
+		rmask = 0;
+		fitRandom(k, L);
 	}
 
 	// back to step 1 (RESET input, or 3 s without a clock)
 	void restart() {
-		divA = divB = split = classic = pattern = turPos = rpos = 0;
+		divA = divB = split = euc = pattern = turPos = maskPos = rpos = loopPos = ratchetCount = 0;
+		stickB = false;
 		burst = window = false;
 		levelA = levelB = false;
 	}
 
-	// how many steps the current loop has, and where the playhead is (display)
-	int loopLength(int mode, float p) const {
+	// how many clocks the current loop has (CHAIN uses this for each turn)
+	int loopLength(int mode, float p, float q) const {
 		switch (mode) {
-			case DIVIDE: return 16;
 			case TURING: return turingLength(p);
-			case SPLIT: return 16;
-			case EUCLID: return CLASSIC[classicIndex(p)][0];
-			case PATTERN: return 16;
+			case EUCLID: return euclidLength(p);
+			case RANDOM: return randomSteps(q);
+			case COIN:
+			case STICKY: return loopSteps(q) ? loopSteps(q) : 16;
 			default: return 16;
+		}
+	}
+
+	// RANDOM: add or remove single hits among the first `steps` until there
+	// are k, so turning the knob changes the pattern a step at a time
+	void fitRandom(int k, int steps) {
+		steps = std::min(32, std::max(1, steps));
+		k = std::min(steps, std::max(0, k));
+		uint32_t used = steps == 32 ? 0xFFFFFFFFu : ((1u << steps) - 1u);
+		int n = popcount32(rmask & used);
+		while (n < k) {
+			int i = (int) (rng.next() % (uint32_t) steps);
+			if (!((rmask >> i) & 1u)) { rmask |= 1u << i; n++; }
+		}
+		while (n > k) {
+			int i = (int) (rng.next() % (uint32_t) steps);
+			if ((rmask >> i) & 1u) { rmask &= ~(1u << i); n--; }
 		}
 	}
 
 	// the 16 ring lights: which steps go to A, which to B, and the playhead.
 	// Returns false when the mode has no step pattern to show.
-	bool ring(int mode, float p, bool a[16], bool b[16], int& play) const {
+	bool ring(int mode, float p, float q, bool a[16], bool b[16], int& play) const {
 		for (int i = 0; i < 16; i++) a[i] = b[i] = false;
 		play = -1;
 		switch (mode) {
 			case DIVIDE: {
-				int la = divideA(p), lb = 16 - la;
-				// show the next 16 clocks from the start of A's cycle
+				int la = divideA(p), lb = 16 - la, r = divideRotate(q);
 				for (int i = 0; i < 16; i++) {
-					a[i] = (i % la) == 0;
-					b[i] = (i % lb) == 0;
+					a[i] = (i % la) == (r % la);
+					b[i] = (i % lb) == (r % lb);
 				}
-				play = (divA + 15) % la;
+				play = (divA + la - 1) % la;
 				return true;
 			}
 			case TURING: {
-				int L = turingLength(p);
+				int L = turingLength(p), M = maskLength(q);
 				for (int i = 0; i < L; i++) {
 					bool bit = turingAlwaysOn(p) || ((reg >> i) & 1);
-					a[i] = bit;
-					b[i] = !bit;
+					bool open = M == 0 || ((mask >> (i % M)) & 1);
+					a[i] = bit && open;
+					b[i] = !bit && open;
 				}
 				play = (turPos + L - 1) % L;
 				return true;
@@ -188,20 +264,25 @@ struct Channel {
 				return true;
 			}
 			case EUCLID: {
-				const int* c = CLASSIC[classicIndex(p)];
-				for (int i = 0; i < c[0]; i++) {
-					a[i] = euclidHit(c[1], c[0], i);
+				int n = euclidLength(p), k = euclidHits(p, q);
+				for (int i = 0; i < n; i++) {
+					a[i] = euclidHit(k, n, i);
 					b[i] = !a[i];
 				}
-				play = (classic + c[0] - 1) % c[0];
+				play = (euc + n - 1) % n;
 				return true;
 			}
 			case RANDOM: {
+				int L = randomSteps(q);
+				int cur = (rpos + L - 1) % L;
+				int page = cur / 16;
 				for (int i = 0; i < 16; i++) {
-					a[i] = (rmask >> i) & 1;
+					int s = page * 16 + i;
+					if (s >= L) break;
+					a[i] = (rmask >> s) & 1u;
 					b[i] = !a[i];
 				}
-				play = (rpos + 15) % 16;
+				play = cur % 16;
 				return true;
 			}
 			case PATTERN: {
@@ -220,19 +301,41 @@ struct Channel {
 	}
 
 	// one clock: decide where it goes (step modes) or start a burst (timed modes)
-	void step(int mode, float p, bool gateOut) {
+	void step(int mode, float p, float q, bool gateOut) {
 		bool fa = false, fb = false;
 		switch (mode) {
 			case COIN: {
-				fb = rng.uniform() < clamp01(p);
+				int L = loopSteps(q);
+				float u;
+				if (L) {
+					if (loopPos >= L) loopPos = 0;
+					u = coinU[loopPos];
+					loopPos = (loopPos + 1) % L;
+				}
+				else u = rng.uniform();
+				fb = u < clamp01(p);
+				fa = !fb;
+			} break;
+			case STICKY: {
+				int L = loopSteps(q);
+				float u;
+				if (L) {
+					if (loopPos >= L) loopPos = 0;
+					if (loopPos == 0) stickB = false;   // every pass starts the same way
+					u = stickU[loopPos];
+					loopPos = (loopPos + 1) % L;
+				}
+				else u = rng.uniform();
+				if (u >= stickyRepeat(p)) stickB = !stickB;
+				fb = stickB;
 				fa = !fb;
 			} break;
 			case DIVIDE: {
-				int la = divideA(p), lb = 16 - la;
+				int la = divideA(p), lb = 16 - la, r = divideRotate(q);
 				if (divA >= la) divA = 0;
 				if (divB >= lb) divB = 0;
-				fa = divA == 0;
-				fb = divB == 0;
+				fa = divA == r % la;
+				fb = divB == r % lb;
 				divA = (divA + 1) % la;
 				divB = (divB + 1) % lb;
 			} break;
@@ -248,6 +351,13 @@ struct Channel {
 				fa = bit;
 				fb = !bit;
 				turPos = (turPos + 1) % L;
+				// the mask: a second, shorter loop that lets steps through or not
+				int M = maskLength(q);
+				if (M > 0) {
+					if (maskPos >= M) maskPos = 0;
+					if (!((mask >> maskPos) & 1)) fa = fb = false;
+					maskPos = (maskPos + 1) % M;
+				}
 			} break;
 			case SPLIT: {
 				int la = splitA(p), lb = 16 - la;
@@ -256,11 +366,11 @@ struct Channel {
 				split = (split + 1) % 16;
 			} break;
 			case EUCLID: {
-				const int* c = CLASSIC[classicIndex(p)];
-				if (classic >= c[0]) classic = 0;
-				fa = euclidHit(c[1], c[0], classic);
+				int n = euclidLength(p), k = euclidHits(p, q);
+				if (euc >= n) euc = 0;
+				fa = euclidHit(k, n, euc);
 				fb = !fa;
-				classic = (classic + 1) % c[0];
+				euc = (euc + 1) % n;
 			} break;
 			case PATTERN: {
 				const DrumPattern& d = PATTERNS[kit & 3][patternIndex(p)];
@@ -268,20 +378,22 @@ struct Channel {
 				fb = (d.b >> pattern) & 1;
 				pattern = (pattern + 1) % 64;
 			} break;
-			case STICKY: {
-				if (rng.uniform() >= stickyRepeat(p)) stickB = !stickB;
-				fb = stickB;
-				fa = !fb;
-			} break;
 			case RANDOM: {
-				fitRandom(randomHits(p));
-				fa = (rmask >> rpos) & 1;
+				int L = randomSteps(q);
+				fitRandom(randomHits(p, q), L);
+				if (rpos >= L) rpos = 0;
+				fa = (rmask >> rpos) & 1u;
 				fb = !fa;
-				rpos = (rpos + 1) % 16;
+				rpos = (rpos + 1) % L;
 			} break;
-			case RAMP:
+			case RAMP: {
+				startTimed(mode, p, q, gateOut, period);
+				return;
+			}
 			case RATCHET: {
-				startTimed(mode, p, gateOut);
+				int d = ratchetDivide(q);
+				if (ratchetCount % d == 0) startTimed(mode, p, q, gateOut, period * d);
+				ratchetCount = (ratchetCount + 1) % d;
 				return;
 			}
 		}
@@ -297,30 +409,7 @@ struct Channel {
 		}
 	}
 
-	// RANDOM: add or remove single hits until there are k, so turning the dial
-	// changes the pattern a step at a time instead of rolling a new one
-	void fitRandom(int k) {
-		k = std::min(16, std::max(0, k));
-		int n = popcount16(rmask);
-		while (n < k) {
-			int i = (int) (rng.next() % 16u);
-			if (!((rmask >> i) & 1)) { rmask |= (uint16_t) (1u << i); n++; }
-		}
-		while (n > k) {
-			int i = (int) (rng.next() % 16u);
-			if ((rmask >> i) & 1) { rmask &= (uint16_t) ~(1u << i); n--; }
-		}
-	}
-
-	// RANDOM: a whole new pattern with the same number of hits
-	void reroll() {
-		int k = popcount16(rmask);
-		rmask = 0;
-		fitRandom(k);
-	}
-
-	void startTimed(int mode, float p, bool gateOut) {
-		float T = period;
+	void startTimed(int mode, float p, float q, bool gateOut, float T) {
 		t = 0.f;
 		burst = window = false;
 		levelA = levelB = false;
@@ -337,11 +426,12 @@ struct Channel {
 		iA = iB = 0;
 		float minGap = T;
 		if (mode == RAMP) {
-			// 16 hits along the ramp, alternating A, B, A, B..., all inside 94% of
+			// n hits along the ramp, alternating A, B, A, B..., all inside 94% of
 			// the clock period so the last hit is over before the next clock
+			int n = rampHits(q);
 			nA = nB = 0;
-			for (int k = 0; k < 16; k++) {
-				float tk = rampTime(p, k / 16.f) * T * 0.94f;
+			for (int k = 0; k < n; k++) {
+				float tk = rampTime(p, (float) k / n) * T * 0.94f;
 				if (k % 2 == 0) evA[nA++] = tk;
 				else evB[nB++] = tk;
 			}
@@ -361,9 +451,10 @@ struct Channel {
 		lastB = nB > 0;
 	}
 
-	// One sample. clock/reset are rising edges. Returns the two output levels.
-	void process(float dt, bool clock, bool reset, int mode, float p, bool gateOut, bool muted,
-	             bool& outA, bool& outB) {
+	// One sample. clock/reset are rising edges. gap = the "gate gap" option.
+	// Returns the two output levels.
+	void process(float dt, bool clock, bool reset, int mode, float p, float q, bool gateOut, bool gap,
+	             bool muted, bool& outA, bool& outB) {
 		since += dt;
 		if (reset) restart();
 		if (mode != lastMode || gateOut != lastGate) {
@@ -376,14 +467,22 @@ struct Channel {
 			restart();
 			timedOut = true;
 		}
-		if (mode == RANDOM) fitRandom(randomHits(p));   // keeps the ring up to date
+		if (mode == RANDOM) {
+			rsteps = randomSteps(q);
+			fitRandom(randomHits(p, q), rsteps);   // keeps the ring up to date
+		}
+		gapLow = false;
 		if (clock) {
 			if (fixedPeriod > 0.f) period = fixedPeriod;
 			else if (clocked && since < TIMEOUT) period = since;
 			since = 0.f;
 			clocked = true;
 			timedOut = false;
-			step(mode, p, gateOut);
+			bool wasA = levelA, wasB = levelB;
+			step(mode, p, q, gateOut);
+			// gate gap: if a gate carries on into the next step, drop it for one
+			// sample so the next module sees a new gate
+			gapLow = gap && ((wasA && levelA) || (wasB && levelB));
 		}
 		bool wa = false, wb = false;
 		if (burst) {
@@ -397,8 +496,10 @@ struct Channel {
 			if (t >= gB1) window = false;
 		}
 		if (burst || window) t += dt;
-		bool a = pulseA > 0.f || levelA || wa;
-		bool b = pulseB > 0.f || levelB || wb;
+		// gate gap: held gates end 2 ms before the next clock is due
+		bool held = !gap || since < std::max(0.001f, period - GATE_GAP);
+		bool a = pulseA > 0.f || (levelA && held && !gapLow) || wa;
+		bool b = pulseB > 0.f || (levelB && held && !gapLow) || wb;
 		if (pulseA > 0.f) pulseA -= dt;
 		if (pulseB > 0.f) pulseB -= dt;
 		outA = a && !muted;

@@ -13,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FONT_BOLD = os.environ.get("PANEL_FONT_BOLD", "/usr/share/fonts/opentype/inter/Inter-Bold.otf")
 FONT_MED = os.environ.get("PANEL_FONT_MED", "/usr/share/fonts/opentype/inter/Inter-Medium.otf")
 
-W, H = 121.92, 128.5  # 24 HP
+W, H = 162.56, 128.5  # 32 HP
 
 BG = "#1D1F24"
 BG_DARK = "#15171B"
@@ -25,13 +25,16 @@ COOL = "#5FD3E6"   # B
 OUTBOX = "#121317"
 
 # ---- LAYOUT (same numbers in src/Divskip.cpp) ----
-X_IN, X_MODE, X_CV, X_KNOB = 9.0, 20.0, 31.0, 45.0
-X_DISP0, X_DISP1 = 55.5, 82.5
-X_MUTE, X_A, X_B = 90.0, 101.5, 113.0
+X_IN, X_MODE, X_CV, X_KNOB = 9.0, 20.0, 33.0, 47.0
+X_CV2, X_SHAPE = 62.0, 74.0
+X_DISP0, X_DISP1 = 81.0, 109.5
+X_SEEDIN = 116.0
+X_MUTE, X_A, X_B = 129.5, 142.5, 154.5
 ROWS = [33.0, 53.0, 73.0, 93.0]
 HEAD_Y = 22.6
 BOT_Y = 114.5
-X_RESET, X_OUTSW, X_MUTESW = 9.0, 38.0, 68.0
+X_RESET, X_OUTSW, X_MUTESW = 9.0, 36.0, 64.0
+X_GSEEDIN, X_GSEEDBTN = 89.0, 101.0
 
 CONTROL = 3.2   # control label size (project standard)
 JACK = 2.9      # jack label size (project standard)
@@ -79,6 +82,12 @@ add(text("IN", X_IN, HEAD_Y, JACK))
 add(text("MODE", X_MODE, HEAD_Y, JACK))
 add(text("CV", X_CV, HEAD_Y, JACK))
 add(text("AMOUNT", X_KNOB, HEAD_Y, CONTROL))
+add(text("CV", X_CV2, HEAD_Y, JACK))
+add(text("SHAPE", X_SHAPE, HEAD_Y, CONTROL))
+add(text("SEED", X_SEEDIN, HEAD_Y, JACK))
+# brackets: which CV belongs to which knob, and the seed jack + button pair
+for x0, x1 in [(X_CV - 3.5, X_KNOB + 3.5), (X_CV2 - 3.5, X_SHAPE + 3.5)]:
+    add(f'<path d="M{x0} {HEAD_Y + 2.6} v-0.9 M{x0} {HEAD_Y + 2.6} H{x1} v-0.9" stroke="{SOFT}" stroke-width="0.35" fill="none"/>')
 add(text("MUTE", X_MUTE, HEAD_Y, CONTROL))
 add(text("A", X_A, HEAD_Y, JACK, fill=HOT))
 add(text("B", X_B, HEAD_Y, JACK, fill=COOL))
@@ -100,8 +109,10 @@ add(text("trig", X_OUTSW + 3.4, 117.5, 2.6, FONT_MED, SOFT, anchor="start"))
 add(text("MUTE SET", X_MUTESW, 108.2, CONTROL))
 add(text("M2", X_MUTESW + 3.4, 113.9, 2.6, FONT_MED, "#F08A3C", anchor="start"))
 add(text("M1", X_MUTESW + 3.4, 117.5, 2.6, FONT_MED, COOL, anchor="start"))
+add(text("NEW SEED", (X_GSEEDIN + X_GSEEDBTN) / 2, 108.2, CONTROL))
+add(text("all channels", (X_GSEEDIN + X_GSEEDBTN) / 2, 121.3, 2.6, FONT_MED, SOFT))
 # mini legend
-LX = 90.0
+LX = 116.0
 add(text("click display: mode", LX, 108.2, 2.6, FONT_MED, SOFT, anchor="start"))
 add(text("ring: A steps", LX, 111.9, 2.6, FONT_MED, HOT, anchor="start"))
 add(text("B steps", LX + 6.95, 115.6, 2.6, FONT_MED, COOL, anchor="start"))
