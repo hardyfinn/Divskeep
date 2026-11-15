@@ -153,7 +153,7 @@ add(f"""
     Ten ways of choosing, from plain division to self-mutating loops, and channels that chain into longer phrases.</p>
   </div>
   <div class="fig"><img src="panel.png" style="width:118mm"></div>
-  <div class="small">Divskip 2.0.0 (plugin slug <i>Divskip</i>, 24 HP). Inspired by the DivSkip Eurorack module by DivKid and
+  <div class="small">Divskip 2.1.0 (plugin slug <i>Divskip</i>, 32 HP). Inspired by the DivSkip Eurorack module by DivKid and
   Making Sound Machines; this is an independent VCV version with its own panel, drum patterns and extra modes.
   The panel picture is a render, not a Rack screenshot. November 2026.</div>
 </section>
@@ -168,19 +168,25 @@ add(f"""
   <div class="step"><span class="num">4</span><div><b>Click the display</b> to go to the next mode. Try COIN, TURING and RANDOM. <b>Shift-click</b> goes back, <b>right-click</b> lists all ten.</div></div>
   <div class="step"><span class="num">5</span><div>Press <b>MUTE</b> on a channel, flip <b>MUTE SET</b> to M2, mute a different channel, and flip back and forth: two mute scenes on one switch.</div></div>
 
-  <h2 style="margin-top:6mm">The panel</h2>
+</section>
+<section class="page">
+  <h2>The panel</h2>
   <table>
     <tr><th>Part</th><th>What it does</th></tr>
     <tr><td>IN</td><td>Clock or any triggers. An empty IN takes the signal from the channel above, so one clock in channel 1 drives all four. Patch a different clock into any channel to break the chain of copies from there down.</td></tr>
     <tr><td>MODE (jack)</td><td>Moves the mode on from the one you picked: each +1 V is one mode further, −1 V one back, and it wraps round. A sequencer with 0, 1, 2 V steps switches modes in time with the music.</td></tr>
     <tr><td>CV (jack)</td><td>±5 V, added to the AMOUNT knob. The knob covers 0 to 5 V, so +2.5 V moves the knob's effect half way. Use an LFO here to sweep a mode's setting.</td></tr>
-    <tr><td>AMOUNT</td><td>The one setting of the mode (see the mode pages). The light ring around it shows the steps.</td></tr>
+    <tr><td>AMOUNT</td><td>The mode's main setting (see the mode pages). The light ring around it shows the steps.</td></tr>
+    <tr><td>CV + SHAPE</td><td>The mode's second setting, with its own ±5 V CV. <b>Each mode remembers its own SHAPE position</b>: switch mode and the knob jumps to that mode's setting; double-click it for that mode's default. In SPLIT and PATTERN it isn't used and is dimmed.</td></tr>
+    <tr><td>SEED (jack)</td><td>A trigger gives this channel a new seed, if it's in a mode that uses one (COIN, TURING, RANDOM, STICKY).</td></tr>
     <tr><td>Display</td><td>Channel number, mode and its setting in words, and two dots that flash when A and B fire. It dims while a chained channel waits its turn.</td></tr>
     <tr><td>MUTE</td><td>Silences A and B. The channel keeps counting, so it comes back in time. Lit cyan in set M1, orange in set M2.</td></tr>
     <tr><td>A, B</td><td>The outputs, 10 V triggers (5 ms) or gates.</td></tr>
     <tr><td>RESET</td><td>All channels back to step 1. Patch Live's bar or song-start trigger here.</td></tr>
     <tr><td>OUTPUTS</td><td><b>trig</b>: 5 ms triggers. <b>gate</b>: each output stays high until the next clock, so two A steps in a row make one long gate. RAMP and RATCHET have their own gate behaviour (see their page).</td></tr>
     <tr><td>MUTE SET</td><td>Two complete sets of mutes, M1 and M2. The MUTE buttons change the set that's showing.</td></tr>
+    <tr><td>NEW SEED</td><td>Button and trigger jack: a new seed for every channel in COIN, TURING, RANDOM or STICKY. New coin and sticky loops, a new Turing loop and mask, and a new random pattern with the same number of hits. Seeds are saved with the patch.</td></tr>
+    <tr><td>Gate gap</td><td>Right-click the module. In gate mode, gates end 2 ms before the next clock, so two A steps in a row are two separate gates instead of one long one.</td></tr>
   </table>
 
   <div class="box">
@@ -188,7 +194,7 @@ add(f"""
   <table style="margin:0">
     <tr><td>Click</td><td>next mode</td></tr>
     <tr><td>Shift-click</td><td>previous mode</td></tr>
-    <tr><td>Ctrl-click (Cmd on Mac)</td><td>roll a new RANDOM pattern and a new TURING loop for this channel</td></tr>
+    <tr><td>Ctrl-click (Cmd on Mac)</td><td>new seed for this channel</td></tr>
     <tr><td>Right-click</td><td>mode list, "New random pattern", and "Chain to channel above"</td></tr>
   </table>
   </div>
@@ -209,13 +215,15 @@ add(f"""
 
   <h3>1 · COIN: a weighted coin toss</h3>
   <p>Each clock goes to A or B at random. AMOUNT tips the coin: full left always A, noon 50/50, full right always B.
-  Nothing repeats, so this is the loosest mode. Put A on a closed hat and B on an open hat for hats that never settle.</p>
+  <b>SHAPE</b> loops the tosses: off, 4, 8, 16 or 32 steps (default 16). Looped, the same tosses repeat every loop while AMOUNT
+  still tips them, and NEW SEED rolls new ones. With the loop off nothing repeats: hats that never settle.</p>
   <div class="two">{grid(ca, cb, label="AMOUNT at 30%:", note="mostly A")}{grid(ca2, cb2, label="AMOUNT at 70%:", note="mostly B")}</div>
 
   <h3>2 · DIVIDE: two clock dividers</h3>
   <p>A fires every <i>n</i>th clock and B every (16 − <i>n</i>)th. Noon is ÷8 and ÷8; turning left speeds A up and slows B down
   (÷4 and ÷12, ÷2 and ÷14...); turning right does the opposite. Both fire on the first clock. Odd pairs such as ÷5 and ÷11
-  drift against the bar and only line up again after a long time.</p>
+  drift against the bar and only line up again after a long time. <b>SHAPE</b> rotates both by 0 to 15 steps (default 0),
+  moving where the hits land in the bar: ÷4 rotated by 2 plays on the off-beats.</p>
   <div class="two">{grid(da, db, label=f"÷{la} and ÷{lb}", note="(about 20%)")}{grid(da2, db2, label="÷8 and ÷8", note="(noon)")}</div>
 
   <h3>3 · TURING: a loop that can change itself</h3>
@@ -223,7 +231,9 @@ add(f"""
   (1 to 16 steps) and <b>locks</b> it, so it repeats exactly. The <b>right half</b> keeps 16 steps and makes each step more and more
   likely to flip as it plays (up to 50%, fully random, at full right). Full left plays A on every clock.
   This is the Autechre-style "evolving" mode: let it run just right of noon until you hear something you like, then turn it
-  left of noon to freeze it. The loop is saved with the patch; Ctrl/Cmd-click the display for a new one.</p>
+  left of noon to freeze it. The loop is saved with the patch; NEW SEED gives a new one.
+  <b>SHAPE</b> adds a <b>mask</b>: a second random loop, 1 to 8 steps long (default off). Where the mask is off, A and B are both
+  silent. A 5-step mask over a 16-step loop punches holes that drift across the pattern.</p>
   <div class="two">{grid(bits(0xA5C3)[:7] + [False]*9, [not x for x in bits(0xA5C3)[:7]] + [False]*9, label="locked, 7 steps", note="(repeats every 7)")}{grid(bits(0xA5C3), [not x for x in bits(0xA5C3)], label="16 steps", note="(right half: steps flip)")}</div>
 </section>
 """)
@@ -238,18 +248,20 @@ add(f"""
   <h3>4 · SPLIT: Euclid split</h3>
   <p>The 16 steps are cut into two parts. A plays 3 hits spread as evenly as possible over the first part, then B plays 3 hits
   over the rest. At noon both parts are 8 steps, which gives the 3-3-2 "tresillo" feel on both. Turn the knob to move the cut:
-  A over 6 and B over 10, A over 11 and B over 5, and so on. Good for call-and-response between two sounds.</p>
+  A over 6 and B over 10, A over 11 and B over 5, and so on. Good for call-and-response between two sounds. SHAPE is not used.</p>
   <div class="two">{grid(sa, sb, label=f"A 3 over {sla}, B 3 over {slb}", note="(noon)")}{grid(sa2, sb2, label=f"A 3 over {sla2}, B 3 over {slb2}")}</div>
 
-  <h3>5 · EUCLID: 32 classic rhythms</h3>
-  <p>The knob picks one of 32 Euclidean rhythms, ordered from the shortest loop (1 in 4) to the longest (5 in 16). A plays the
-  hits and B plays the gaps, so the two outputs always lock together. Full list on the last page.</p>
+  <h3>5 · EUCLID: hits spread evenly</h3>
+  <p><b>AMOUNT</b> sets the loop length, 1 to 16 steps; <b>SHAPE</b> sets how many hits are spread through it as evenly as
+  possible (default 3, never more than the length). A plays the hits and B plays the gaps, so the two outputs always lock
+  together. 3 in 8 is the tresillo, 5 in 8 the cinquillo, 5 in 16 a bossa-like line.</p>
   <div class="two">{grid(*e1, label="3 in 8", note="(loop of 8)")}{grid(*e2, label="5 in 16")}</div>
 
-  <h3>6 · RAMP: 16 hits that speed up or slow down</h3>
-  <p>Each clock becomes 16 short hits fitted into the time until the next clock, alternating A, B, A, B. Full left speeds up
+  <h3>6 · RAMP: runs of hits that speed up or slow down</h3>
+  <p>Each clock becomes a run of short hits fitted into the time until the next clock, alternating A, B, A, B. <b>SHAPE</b> sets
+  how many, 1 to 16 (default 16). Full left speeds up
   (a bouncing-ball roll), noon speeds up then slows down, full right slows down. Use a slow clock (a bar or a beat) to get fills and
-  rolls; send A and B to the same drum for all 16.</p>
+  rolls; send A and B to the same drum to hear every hit.</p>
   <div class="two">{labelled(ramp_svg(0.0), "full left: speeds up")}{labelled(ramp_svg(1.0), "full right: slows down")}</div>
   <p><b>In gate mode</b> RAMP plays one gate on A, then a gate on B that starts where A ends. The knob sets A's length on an
   exponential scale: 1/16 of the clock at full left, half at noon, 15/16 at full right. Great for timing two envelopes.</p>
@@ -266,7 +278,9 @@ add(f"""
   <h3>7 · RATCHET: bursts</h3>
   <p>Each clock becomes a burst: A gets <i>n</i> evenly spaced hits and B gets 16 − <i>n</i>, both fitted into one clock.
   Noon is 8 and 8; left is fewer on A and more on B. With a quarter-note clock, 4 on A and 12 on B is 16ths against triplet
-  32nds, which makes good polyrhythmic rolls. In <b>gate mode</b> it works like RAMP's gate mode but with an even, finer scale.</p>
+  32nds, which makes good polyrhythmic rolls. <b>SHAPE</b> divides the clock first: off, ÷2, ÷4 or ÷8 (default off). Divided, a
+  burst comes every 2nd, 4th or 8th clock and spreads over that longer time. In <b>gate mode</b> it works like RAMP's gate mode
+  but with an even, finer scale.</p>
   <div class="two">{labelled(r1, "A ×4, B ×12")}{labelled(r2, "A ×8, B ×8 (noon)")}</div>
 
   <h3>8 · PATTERN: drum patterns</h3>
@@ -281,27 +295,30 @@ add(f"""
   </table>
   <p>The knob picks the pattern (the name is on the display; the full list is on the last page). Patterns run from Detroit and
   electro to breaks, dub, footwork, and some broken "AE" ones, and several use 3s, 5s and 7s that drift across the bar.
-  The ring shows the bar that is playing.</p>
+  The ring shows the bar that is playing. SHAPE is not used.</p>
   {grid(bits(pa[1]), bits(pa[2]), label="channel 1, “ae limp”", note="bar 1")}
 
   <h3>9 · RANDOM: <i>n</i> hits in random places</h3>
-  <p>The knob sets how many of the 16 steps hit (0 to 16); where they fall is random. Hits go to A, empty steps to B.
+  <p><b>SHAPE</b> sets how many steps the loop has, 1 to 32 (default 16), and <b>AMOUNT</b> how many of them hit; where they fall is random. Hits go to A, empty steps to B.
   The pattern loops until you change it. Turning the knob adds or takes away <b>one hit at a time</b>, so the rest of
-  the pattern stays put: turn it slowly to build a part up or strip it down. Ctrl/Cmd-click the display to roll a new pattern
+  the pattern stays put: turn it slowly to build a part up or strip it down. NEW SEED rolls a new pattern
   with the same number of hits. The pattern is saved with the patch.</p>
   {grid(ra, [not x for x in ra], label="6 of 16")}
 
+</section>
+<section class="page">
+  <h2>The modes, part 4</h2>
   <h3>10 · STICKY: a coin with memory</h3>
   <p>Like COIN, but the knob sets how likely each hit is to go to the <b>same</b> output as the last one. Full left always swaps
   (A, B, A, B), noon is a plain coin toss, and to the right you get longer and longer runs on one side, then a switch.
-  The result is runs and clusters rather than an even scatter.</p>
+  The result is runs and clusters rather than an even scatter. <b>SHAPE</b> loops it: off (default), 4, 8, 16 or 32 steps;
+  looped, the same runs repeat every loop, and NEW SEED rolls new ones.</p>
   <div class="two">{grid(*sticky_demo(0.5, 3), label="noon")}{grid(*sticky_demo(0.85, 8), label="85%:", note="long runs")}</div>
-</section>
 """)
 
 add(f"""
-<section class="page">
-  <h2>Chain: longer loops from short ones</h2>
+
+  <h2 style="margin-top:7mm">Chain: longer loops from short ones</h2>
   <p>Right-click a channel's display and tick <b>Chain to channel above</b> (or use the module's right-click menu). Chained
   channels play <b>one after another</b>: channel 1 plays its loop once, then channel 2 plays its loop, and so on, then back to
   channel 1. Each channel keeps its own mode and setting, so one long phrase can be made of different kinds of part.</p>
@@ -321,7 +338,9 @@ add(f"""
     bar, then a bar that keeps changing: three bars of structure, one of variation.</p>
   </div>
 
-  <h2 style="margin-top:6mm">Arranging with Divskip</h2>
+</section>
+<section class="page">
+  <h2>Arranging with Divskip</h2>
   <p>Loop fatigue usually comes from every part repeating at the same length. Divskip has four ways out:</p>
   <ol>
     <li><b>Mute sets as sections.</b> Set up M1 as the "verse" (say, hats and perc muted) and M2 as the "drop", then flip the switch on
@@ -371,7 +390,7 @@ add(f"""
 rows = []
 for i in range(24):
     rows.append("<tr>" + "".join(f"<td>{html.escape(kits[k][i][0])}</td>" for k in range(4)) + f"<td class='n'>{i + 1}</td></tr>")
-cl = ", ".join(f"{k} in {n}" for n, k in CLASSIC)
+
 add(f"""
 <section class="page">
   <h2>Reference</h2>
@@ -381,8 +400,23 @@ add(f"""
     <tr><th>Ch 1 kick / snare</th><th>Ch 2 closed / open hat</th><th>Ch 3 low / high perc</th><th>Ch 4 ride / accents</th><th>#</th></tr>
     {''.join(rows)}
   </table>
-  <h3>EUCLID mode: the 32 rhythms, left to right</h3>
-  <p class="small">{cl}</p>
+</section>
+<section class="page">
+  <h2>Reference, continued</h2>
+  <h3>What SHAPE does, at a glance</h3>
+  <table>
+    <tr><th>Mode</th><th>SHAPE</th><th>Default</th></tr>
+    <tr><td>COIN</td><td>loop: off, 4, 8, 16, 32 steps</td><td>16</td></tr>
+    <tr><td>DIVIDE</td><td>rotate 0 to 15 steps</td><td>0</td></tr>
+    <tr><td>TURING</td><td>mask loop: off, 1 to 8 steps</td><td>off</td></tr>
+    <tr><td>SPLIT</td><td>not used</td><td></td></tr>
+    <tr><td>EUCLID</td><td>number of hits</td><td>3</td></tr>
+    <tr><td>RAMP</td><td>number of hits, 1 to 16</td><td>16</td></tr>
+    <tr><td>RATCHET</td><td>divide first: off, ÷2, ÷4, ÷8</td><td>off</td></tr>
+    <tr><td>PATTERN</td><td>not used</td><td></td></tr>
+    <tr><td>RANDOM</td><td>number of steps, 1 to 32</td><td>16</td></tr>
+    <tr><td>STICKY</td><td>loop: off, 4, 8, 16, 32 steps</td><td>off</td></tr>
+  </table>
   <h3>What AMOUNT does, at a glance</h3>
   <table>
     <tr><th>Mode</th><th>Full left</th><th>Noon</th><th>Full right</th></tr>
@@ -390,11 +424,11 @@ add(f"""
     <tr><td>DIVIDE</td><td>A ÷1, B ÷15</td><td>÷8 and ÷8</td><td>A ÷15, B ÷1</td></tr>
     <tr><td>TURING</td><td>always A</td><td>16 steps, locked</td><td>16 steps, fully random</td></tr>
     <tr><td>SPLIT</td><td>A 3/3, B 3/13</td><td>3/8 and 3/8</td><td>A 3/13, B 3/3</td></tr>
-    <tr><td>EUCLID</td><td>1 in 4</td><td>1 in 9</td><td>5 in 16</td></tr>
+    <tr><td>EUCLID</td><td>length 1</td><td>length 9</td><td>length 16</td></tr>
     <tr><td>RAMP</td><td>speeds up</td><td>up, then down</td><td>slows down</td></tr>
     <tr><td>RATCHET</td><td>A ×1, B ×15</td><td>×8 and ×8</td><td>A ×15, B ×1</td></tr>
     <tr><td>PATTERN</td><td>pattern 1</td><td>pattern 13</td><td>pattern 24</td></tr>
-    <tr><td>RANDOM</td><td>no hits (all B)</td><td>8 of 16</td><td>all 16 (all A)</td></tr>
+    <tr><td>RANDOM</td><td>no hits (all B)</td><td>half the steps</td><td>every step (all A)</td></tr>
     <tr><td>STICKY</td><td>always swaps</td><td>coin toss</td><td>long runs</td></tr>
   </table>
 </section>
